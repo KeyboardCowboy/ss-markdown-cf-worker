@@ -4,9 +4,11 @@
   "description": "Convert Squarespace pages to Markdown",
   "main": "src/index.js",
   "scripts": {
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test:generate": "node test/generate-markdown.mjs"
   },
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "wrangler": "^3.0.0",
+    "miniflare": "^3.0.0"
   }
 }
