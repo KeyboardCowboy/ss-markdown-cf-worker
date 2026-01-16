@@ -1,3 +1,5 @@
+const MARKDOWN_VERSION = '1.0.2';
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -321,7 +323,7 @@ function normalizeBlockText(text) {
 
 function buildMarkdown(title, description, url, content) {
   let markdown = `---
-version: "1.0.1"
+version: "${MARKDOWN_VERSION}"
 title: "${String(title).replace(/"/g, '\\"')}"
 description: "${String(description).replace(/"/g, '\\"')}"
 url: "${String(url)}"

@@ -45,6 +45,11 @@ Cloudflare Worker that intercepts Squarespace site traffic and, when `?format=ma
 ## Next steps (near term)
 - [ ] Add a couple of real-world sample URLs and expected output notes (private/internal if needed)
 - [ ] Decide whether to prioritize extraction quality (M2) vs operational hardening (M3)
+- [ ] Add tracking for `?format=markdown` hits:
+  - Option A: client-side GA4 event (works for browsers only)
+  - Option B (preferred): server-side GA4 Measurement Protocol event from the Worker (works for agents/crawlers)
+  - Required inputs: GA4 Measurement ID (`G-...`) + Measurement Protocol API secret
+  - Decide what identifier to use for non-browser agents (synthetic `client_id`, hashed IP, etc.)
 
 ## Notes
 - Deployed with Wrangler via `npm run deploy`.
