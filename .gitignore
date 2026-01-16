@@ -2,3 +2,8 @@ test/*.html
 test/output.md
 node_modules/
 .npm-cache/
+
+# Local-only secrets / env files (never commit)
+.dev.vars
+.env
+.env.*
