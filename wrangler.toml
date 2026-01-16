@@ -1,0 +1,7 @@
+name = "ss-markdown-converter"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[env.production.routes]]
+pattern = "*.goldenhistorytours.com/*"
+zone_name = "goldenhistorytours.com"
