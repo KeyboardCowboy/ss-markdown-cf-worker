@@ -90,6 +90,7 @@ function extractTextContent(html) {
 
 function buildMarkdown(title, description, url, content) {
   let markdown = `---
+version: "1.0.0"
 title: "${title.replace(/"/g, '\\\\"')}"
 description: "${description.replace(/"/g, '\\\\"')}"
 url: "${url}"
