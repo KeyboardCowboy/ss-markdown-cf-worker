@@ -17,7 +17,10 @@ export default {
     const url = new URL(request.url);
 
     // Only process markdown requests; all other traffic is passed through unchanged.
-    if (url.searchParams.get("format") !== "markdown") {
+    const isMarkdownFormat =
+      url.searchParams.get("format") === "markdown" ||
+      url.pathname.endsWith(".md");
+    if (!isMarkdownFormat) {
       return fetch(request);
     }
 
