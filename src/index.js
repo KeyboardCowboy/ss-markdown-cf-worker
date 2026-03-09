@@ -24,13 +24,10 @@ export default {
       return fetch(request);
     }
 
-    // Build a "clean" URL by removing `format=markdown` and stripping a trailing ".md" extension from the path, before fetching the upstream page.
+    // Build a "clean" URL by removing `format=markdown` before fetching the upstream page.
     // This avoids interfering with Squarespace rendering/caching.
     const cleanURL = new URL(url);
     cleanURL.searchParams.delete("format");
-    if (cleanURL.pathname.endsWith(".md")) {
-      cleanURL.pathname = cleanURL.pathname.slice(0, -3);
-    }
 
     try {
       // In tests, allow injecting HTML directly to avoid network fetches
@@ -233,6 +230,11 @@ async function extractPageDataFromHtml(html, fallbackUrl) {
     // context
     inLiDepth: 0,
     linkStack: [],
+
+    // Isolated button-capture state — never touches `current` so it cannot
+    // interfere with in-progress content blocks.
+    buttonText: undefined,
+    buttonHref: undefined,
   };
 
   // Start capturing a new "block" (paragraph, heading, list item).
@@ -399,44 +401,49 @@ async function extractPageDataFromHtml(html, fallbackUrl) {
         el.onEndTag(() => appendToCurrent("*"));
       },
     })
-    .on("main#page article#sections .content-wrapper a", {
+    // Inline links — scoped to paragraph content only so button anchors
+    // (which have no <p> ancestor) never trigger pushLink/popLink.
+    .on("main#page article#sections .sqs-html-content p a", {
       element(el) {
         const href = el.getAttribute("href") || "";
         pushLink(href);
         el.onEndTag(() => popLinkToCurrent());
       },
-      // IMPORTANT: no text() handler here, otherwise link text is captured twice.
-      // The surrounding h2/h3/p/li text() handlers flow through appendToCurrent(),
-      // which routes into linkStack when inside a link.
+      // IMPORTANT: no text() handler here — text flows through the p text()
+      // handler above, which routes into linkStack via appendToCurrent().
+    })
+    .on("main#page article#sections .sqs-markdown-content p a", {
+      element(el) {
+        const href = el.getAttribute("href") || "";
+        pushLink(href);
+        el.onEndTag(() => popLinkToCurrent());
+      },
     })
 
-    // Squarespace button blocks: capture the anchor inside .sqs-block-button
-    // These sit outside the .content-wrapper but are semantically adjacent to content.
+    // Squarespace button blocks (.sqs-block-button > ... > a).
+    // NOTE: on this site these live inside .content-wrapper, so the same <a>
+    // also fires the .content-wrapper a handler above (pushLink/popLink).
+    // We use dedicated state.buttonText / state.buttonHref slots and never
+    // touch state.current, so button capture cannot disrupt content blocks.
     .on("main#page article#sections .sqs-block-button a", {
       element(el) {
-        stopCollectingTitleIfNeeded();
         const href = el.getAttribute("href") || "";
         const base = state.canonical || fallbackUrl;
         let resolved = href;
-        try {
-          resolved = new URL(href, base).toString();
-        } catch {
-          // leave as-is
-        }
-        // Start a button block; text() accumulates the label.
-        state.current = { kind: "button", text: "", href: resolved };
+        try { resolved = new URL(href, base).toString(); } catch { /* leave as-is */ }
+        state.buttonText = "";
+        state.buttonHref = resolved;
         el.onEndTag(() => {
-          if (!state.current || state.current.kind !== "button") return;
-          const label = normalizeInlineText(state.current.text) || resolved;
-          if (label && resolved) {
-            state.blocks.push({ kind: "button", text: label, href: resolved });
+          const label = normalizeInlineText(state.buttonText || "") || state.buttonHref;
+          if (label && state.buttonHref) {
+            state.blocks.push({ kind: "button", text: label, href: state.buttonHref });
           }
-          state.current = null;
+          state.buttonText = undefined;
+          state.buttonHref = undefined;
         });
       },
       text(t) {
-        if (!state.current || state.current.kind !== "button") return;
-        state.current.text += t.text;
+        if (state.buttonText !== undefined) state.buttonText += t.text;
       },
     });
 
@@ -492,8 +499,7 @@ function blocksToMarkdown(blocks) {
     else if (b.kind === "button") lines.push(`[${b.text}](${b.href})`);
     else lines.push(b.text);
 
-    // Add blank line between non-list blocks; keep list items tight.
-    // Buttons also stay tight with each other (multiple CTAs on one section).
+    // Add blank line between non-list blocks; keep list items and buttons tight
     const next = blocks[i + 1];
     if (!next) continue;
     const isList = b.kind === "li";
