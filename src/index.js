@@ -239,6 +239,10 @@ async function extractPageDataFromHtml(html, fallbackUrl) {
     // interfere with in-progress content blocks.
     buttonText: undefined,
     buttonHref: undefined,
+
+    // Isolated summary-title capture state.
+    summaryTitleText: undefined,
+    summaryTitleHref: undefined,
   };
 
   // Start capturing a new "block" (paragraph, heading, list item).
@@ -448,6 +452,31 @@ async function extractPageDataFromHtml(html, fallbackUrl) {
       },
       text(t) {
         if (state.buttonText !== undefined) state.buttonText += t.text;
+      },
+    })
+
+    // Summary item titles (.summary-item-list blocks, e.g. blog post carousels).
+    // These use a .summary-title div with a child <a> instead of a heading tag.
+    // We emit them as H3s with the link inline: ### [Title](url)
+    .on("main#page article#sections .summary-title a", {
+      element(el) {
+        const href = el.getAttribute("href") || "";
+        const base = state.canonical || fallbackUrl;
+        let resolved = href;
+        try { resolved = new URL(href, base).toString(); } catch { /* leave as-is */ }
+        state.summaryTitleText = "";
+        state.summaryTitleHref = resolved;
+        el.onEndTag(() => {
+          const title = normalizeInlineText(state.summaryTitleText || "");
+          if (title && state.summaryTitleHref) {
+            state.blocks.push({ kind: "h3", text: `[${title}](${state.summaryTitleHref})` });
+          }
+          state.summaryTitleText = undefined;
+          state.summaryTitleHref = undefined;
+        });
+      },
+      text(t) {
+        if (state.summaryTitleText !== undefined) state.summaryTitleText += t.text;
       },
     });
 
