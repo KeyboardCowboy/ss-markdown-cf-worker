@@ -31,6 +31,8 @@ if (!res.ok) {
 
 const md = await res.text();
 
+await mf.dispose();
+
 await mkdir(path.dirname(outPath), { recursive: true });
 await writeFile(outPath, md, "utf8");
 

@@ -1,4 +1,4 @@
-const MARKDOWN_VERSION = "1.1.0";
+const MARKDOWN_VERSION = "1.2.0";
 const BR_TOKEN = "__SSMD_BR__";
 
 /**
@@ -408,6 +408,36 @@ async function extractPageDataFromHtml(html, fallbackUrl) {
       // IMPORTANT: no text() handler here, otherwise link text is captured twice.
       // The surrounding h2/h3/p/li text() handlers flow through appendToCurrent(),
       // which routes into linkStack when inside a link.
+    })
+
+    // Squarespace button blocks: capture the anchor inside .sqs-block-button
+    // These sit outside the .content-wrapper but are semantically adjacent to content.
+    .on("main#page article#sections .sqs-block-button a", {
+      element(el) {
+        stopCollectingTitleIfNeeded();
+        const href = el.getAttribute("href") || "";
+        const base = state.canonical || fallbackUrl;
+        let resolved = href;
+        try {
+          resolved = new URL(href, base).toString();
+        } catch {
+          // leave as-is
+        }
+        // Start a button block; text() accumulates the label.
+        state.current = { kind: "button", text: "", href: resolved };
+        el.onEndTag(() => {
+          if (!state.current || state.current.kind !== "button") return;
+          const label = normalizeInlineText(state.current.text) || resolved;
+          if (label && resolved) {
+            state.blocks.push({ kind: "button", text: label, href: resolved });
+          }
+          state.current = null;
+        });
+      },
+      text(t) {
+        if (!state.current || state.current.kind !== "button") return;
+        state.current.text += t.text;
+      },
     });
 
   // Run the rewriter to trigger handlers; output is ignored.
@@ -459,14 +489,18 @@ function blocksToMarkdown(blocks) {
     if (b.kind === "h2") lines.push(`## ${b.text}`);
     else if (b.kind === "h3") lines.push(`### ${b.text}`);
     else if (b.kind === "li") lines.push(`- ${b.text}`);
+    else if (b.kind === "button") lines.push(`[${b.text}](${b.href})`);
     else lines.push(b.text);
 
-    // Add blank line between non-list blocks; keep list items tight
+    // Add blank line between non-list blocks; keep list items tight.
+    // Buttons also stay tight with each other (multiple CTAs on one section).
     const next = blocks[i + 1];
     if (!next) continue;
     const isList = b.kind === "li";
     const nextIsList = next.kind === "li";
-    if (!(isList && nextIsList)) lines.push("");
+    const isButton = b.kind === "button";
+    const nextIsButton = next.kind === "button";
+    if (!(isList && nextIsList) && !(isButton && nextIsButton)) lines.push("");
   }
 
   return lines.join("\n").trim();
