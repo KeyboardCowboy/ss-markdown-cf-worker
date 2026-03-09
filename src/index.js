@@ -24,10 +24,13 @@ export default {
       return fetch(request);
     }
 
-    // Build a "clean" URL by removing `format=markdown` before fetching the upstream page.
+    // Build a "clean" URL by removing `format=markdown` and stripping a trailing ".md" extension from the path, before fetching the upstream page.
     // This avoids interfering with Squarespace rendering/caching.
     const cleanURL = new URL(url);
     cleanURL.searchParams.delete("format");
+    if (cleanURL.pathname.endsWith(".md")) {
+      cleanURL.pathname = cleanURL.pathname.slice(0, -3);
+    }
 
     try {
       // In tests, allow injecting HTML directly to avoid network fetches
