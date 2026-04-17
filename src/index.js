@@ -243,6 +243,10 @@ async function extractPageDataFromHtml(html, fallbackUrl) {
     // Isolated summary-title capture state.
     summaryTitleText: undefined,
     summaryTitleHref: undefined,
+
+    // Isolated testimonial capture state.
+    quoteText: undefined,
+    captionText: undefined,
   };
 
   // Start capturing a new "block" (paragraph, heading, list item).
@@ -478,6 +482,36 @@ async function extractPageDataFromHtml(html, fallbackUrl) {
       text(t) {
         if (state.summaryTitleText !== undefined) state.summaryTitleText += t.text;
       },
+    })
+
+    // Testimonial blockquotes (data-animation-role="quote") and their attributions.
+    // The blockquote contains decorative curly-quote <span> wrappers — we strip those chars.
+    .on('main#page article#sections blockquote[data-animation-role="quote"]', {
+      element(el) {
+        state.quoteText = "";
+        el.onEndTag(() => {
+          const raw = (state.quoteText || "").replace(/^[\u201C\u2018\s]+|[\u201D\u2019\s]+$/g, "").trim();
+          const text = normalizeInlineText(raw);
+          if (text) state.blocks.push({ kind: "blockquote", text });
+          state.quoteText = undefined;
+        });
+      },
+      text(t) {
+        if (state.quoteText !== undefined) state.quoteText += t.text;
+      },
+    })
+    .on("main#page article#sections figcaption.source", {
+      element(el) {
+        state.captionText = "";
+        el.onEndTag(() => {
+          const text = normalizeInlineText(state.captionText || "");
+          if (text) state.blocks.push({ kind: "caption", text });
+          state.captionText = undefined;
+        });
+      },
+      text(t) {
+        if (state.captionText !== undefined) state.captionText += t.text;
+      },
     });
 
   // Run the rewriter to trigger handlers; output is ignored.
@@ -530,16 +564,20 @@ function blocksToMarkdown(blocks) {
     else if (b.kind === "h3") lines.push(`### ${b.text}`);
     else if (b.kind === "li") lines.push(`- ${b.text}`);
     else if (b.kind === "button") lines.push(`[${b.text}](${b.href})`);
+    else if (b.kind === "blockquote") lines.push(`> ${b.text}`);
+    else if (b.kind === "caption") lines.push(`*${b.text}*`);
     else lines.push(b.text);
 
-    // Add blank line between non-list blocks; keep list items and buttons tight
+    // Add blank line between non-list blocks; keep list items, buttons, and
+    // blockquote+caption pairs tight.
     const next = blocks[i + 1];
     if (!next) continue;
     const isList = b.kind === "li";
     const nextIsList = next.kind === "li";
     const isButton = b.kind === "button";
     const nextIsButton = next.kind === "button";
-    if (!(isList && nextIsList) && !(isButton && nextIsButton)) lines.push("");
+    const isBlockquoteCaption = b.kind === "blockquote" && next.kind === "caption";
+    if (!(isList && nextIsList) && !(isButton && nextIsButton) && !isBlockquoteCaption) lines.push("");
   }
 
   return lines.join("\n").trim();
