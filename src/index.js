@@ -1,4 +1,4 @@
-const MARKDOWN_VERSION = "1.3.0";
+const MARKDOWN_VERSION = "1.3.1";
 const BR_TOKEN = "__SSMD_BR__";
 
 /**
@@ -437,7 +437,7 @@ async function extractPageDataFromHtml(html, fallbackUrl) {
     // also fires the .content-wrapper a handler above (pushLink/popLink).
     // We use dedicated state.buttonText / state.buttonHref slots and never
     // touch state.current, so button capture cannot disrupt content blocks.
-    .on("main#page article#sections .sqs-block-button a", {
+    .on("main#page article#sections .sqs-button-block-container-system_desktop a", {
       element(el) {
         const href = el.getAttribute("href") || "";
         const base = state.canonical || fallbackUrl;
